@@ -44,13 +44,15 @@ public class GetMovieJob
                 await CreateOrUpdateMovie(movie);
             }
 
-            // Remove movies that no longer exist in Radarr
-            var radarrIds = movies.Select(radarrMovie => radarrMovie.Id).ToList();
-            var moviesToRemove = await _dbContext.Movies
-                .Where(movie => !radarrIds.Contains(movie.RadarrId))
+            // Remove movies that no longer exist or have had their files removed in Radarr
+            var existingRadarrIds = movies.Select(movie => movie.Id).ToList();
+            var removedFileRadarrIds = movies.Where(movie => !movie.HasFile).Select(movie => movie.Id).ToList();
+
+            var moviesToDelete = await _dbContext.Movies
+                .Where(dbMovie => !existingRadarrIds.Contains(dbMovie.RadarrId) || removedFileRadarrIds.Contains(dbMovie.RadarrId))
                 .ToListAsync();
-            
-            _dbContext.Movies.RemoveRange(moviesToRemove);
+
+            _dbContext.Movies.RemoveRange(moviesToDelete);
 
             await _dbContext.SaveChangesAsync();
             _logger.LogInformation("Movies processed successfully.");
